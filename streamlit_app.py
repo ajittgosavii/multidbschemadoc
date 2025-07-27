@@ -851,7 +851,10 @@ def show_view_documentation(view, db_name, claude_client, include_ai_description
 def show_function_documentation(func, db_name, func_type):
     """Show function/procedure documentation"""
     
-    with st.expander(f"⚙️ {func['function_name' if 'function_name' in func else func['procedure_name']} ({func_type})"):
+    # Get the function/procedure name safely
+    func_name = func.get('function_name') or func.get('procedure_name', 'Unknown')
+    
+    with st.expander(f"⚙️ {func_name} ({func_type})"):
         st.markdown(f"""
         **{func_type} Information:**
         - **Schema:** {func.get('schema', 'N/A')}
