@@ -1700,11 +1700,11 @@ def generate_full_html_document(db_name, db_data, content):
     return full_html
 
 def generate_pdf_documentation(db_name, db_data, markdown_content):
-    """Generate PDF documentation using reportlab"""
+    """Generate comprehensive PDF documentation using reportlab"""
     
     try:
         from reportlab.lib.pagesizes import letter, A4
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import inch
         from reportlab.lib import colors
@@ -1713,8 +1713,15 @@ def generate_pdf_documentation(db_name, db_data, markdown_content):
         # Create a BytesIO buffer
         buffer = io.BytesIO()
         
-        # Create the PDF document
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        # Create the PDF document with margins
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=18
+        )
         styles = getSampleStyleSheet()
         
         # Custom styles
@@ -1723,7 +1730,8 @@ def generate_pdf_documentation(db_name, db_data, markdown_content):
             parent=styles['Heading1'],
             fontSize=24,
             spaceAfter=30,
-            textColor=colors.HexColor('#2c3e50')
+            textColor=colors.HexColor('#2c3e50'),
+            alignment=1  # Center alignment
         )
         
         heading_style = ParagraphStyle(
@@ -1731,31 +1739,64 @@ def generate_pdf_documentation(db_name, db_data, markdown_content):
             parent=styles['Heading2'],
             fontSize=16,
             spaceAfter=12,
+            spaceBefore=24,
             textColor=colors.HexColor('#3498db')
         )
         
-        # Build the story
+        subheading_style = ParagraphStyle(
+            'CustomSubHeading',
+            parent=styles['Heading3'],
+            fontSize=14,
+            spaceAfter=8,
+            spaceBefore=16,
+            textColor=colors.HexColor('#2c3e50')
+        )
+        
+        # Build the comprehensive story
         story = []
         
-        # Title
-        story.append(Paragraph(f"{db_name} Database Documentation", title_style))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-        story.append(Spacer(1, 24))
+        # Cover Page
+        story.append(Spacer(1, 2*inch))
+        story.append(Paragraph(f"📚 {db_name} Database", title_style))
+        story.append(Paragraph("Complete Schema Documentation", title_style))
+        story.append(Spacer(1, 1*inch))
+        story.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+        story.append(Paragraph(f"Time: {datetime.now().strftime('%I:%M %p')}", styles['Normal']))
+        story.append(PageBreak())
         
-        # Database overview
-        story.append(Paragraph("Database Overview", heading_style))
+        # Table of Contents
+        story.append(Paragraph("Table of Contents", heading_style))
+        story.append(Paragraph("1. Database Overview", styles['Normal']))
+        story.append(Paragraph("2. Tables Documentation", styles['Normal']))
+        
+        table_num = 1
+        for table in db_data.get('tables', []):
+            story.append(Paragraph(f"   2.{table_num} {table['table_name']}", styles['Normal']))
+            table_num += 1
+        
+        story.append(Paragraph("3. Views Documentation", styles['Normal']))
+        story.append(Paragraph("4. Functions & Procedures", styles['Normal']))
+        story.append(Paragraph("5. Database Statistics", styles['Normal']))
+        story.append(PageBreak())
+        
+        # 1. Database Overview
+        story.append(Paragraph("1. Database Overview", heading_style))
         db_info = db_data.get('database_info', {})
+        
         overview_data = [
             ['Property', 'Value'],
             ['Database Name', db_info.get('name', 'N/A')],
-            ['Version', db_info.get('version', 'N/A')],
-            ['Size', db_info.get('size', 'N/A')],
-            ['Tables', str(len(db_data.get('tables', [])))],
-            ['Views', str(len(db_data.get('views', [])))]
+            ['Database Version', db_info.get('version', 'N/A')],
+            ['Total Size', db_info.get('size', 'N/A')],
+            ['Created Date', db_info.get('created', 'N/A')],
+            ['Last Backup', db_info.get('last_backup', 'N/A')],
+            ['Total Tables', str(len(db_data.get('tables', [])))],
+            ['Total Views', str(len(db_data.get('views', [])))],
+            ['Total Functions', str(len(db_data.get('functions', [])))],
+            ['Total Procedures', str(len(db_data.get('procedures', [])))]
         ]
         
-        overview_table = Table(overview_data)
+        overview_table = Table(overview_data, colWidths=[2.5*inch, 3*inch])
         overview_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1764,39 +1805,221 @@ def generate_pdf_documentation(db_name, db_data, markdown_content):
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
         story.append(overview_table)
         story.append(Spacer(1, 24))
         
-        # Tables documentation
-        story.append(Paragraph("Tables Documentation", heading_style))
+        # Database Statistics Summary
+        total_rows = sum(table.get('row_count', 0) for table in db_data.get('tables', []))
+        total_size = sum(table.get('size_mb', 0) for table in db_data.get('tables', []))
+        total_columns = sum(len(table.get('columns', [])) for table in db_data.get('tables', []))
+        total_indexes = sum(len(table.get('indexes', [])) for table in db_data.get('tables', []))
         
-        for table in db_data.get('tables', [])[:3]:  # Limit to first 3 tables for PDF size
-            story.append(Paragraph(f"Table: {table['table_name']}", styles['Heading3']))
-            story.append(Paragraph(f"Description: {table.get('description', 'No description')}", styles['Normal']))
+        stats_data = [
+            ['Metric', 'Count', 'Details'],
+            ['Total Records', f"{total_rows:,}", 'Across all tables'],
+            ['Total Size', f"{total_size:.1f} MB", 'Data + indexes'],
+            ['Total Columns', str(total_columns), 'All table columns'],
+            ['Total Indexes', str(total_indexes), 'Performance optimization'],
+        ]
+        
+        stats_table = Table(stats_data, colWidths=[2*inch, 1.5*inch, 2*inch])
+        stats_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27ae60')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(stats_table)
+        story.append(PageBreak())
+        
+        # 2. Tables Documentation (ALL TABLES - NO LIMIT)
+        story.append(Paragraph("2. Tables Documentation", heading_style))
+        
+        table_counter = 1
+        for table in db_data.get('tables', []):  # ALL TABLES, NO LIMIT
+            # Table header
+            story.append(Paragraph(f"2.{table_counter} Table: {table['table_name']}", subheading_style))
+            story.append(Paragraph(f"Description: {table.get('description', 'No description available')}", styles['Normal']))
             story.append(Spacer(1, 12))
             
-            # Table info
-            table_info = [
+            # Table metadata
+            table_meta_data = [
                 ['Property', 'Value'],
                 ['Schema', table.get('schema', 'N/A')],
-                ['Type', table.get('table_type', 'N/A')],
-                ['Rows', f"{table.get('row_count', 0):,}"],
-                ['Size', f"{table.get('size_mb', 0):.1f} MB"]
+                ['Table Type', table.get('table_type', 'N/A')],
+                ['Row Count', f"{table.get('row_count', 0):,}"],
+                ['Size (MB)', f"{table.get('size_mb', 0):.1f}"],
+                ['Column Count', str(len(table.get('columns', [])))],
+                ['Index Count', str(len(table.get('indexes', [])))],
+                ['Constraint Count', str(len(table.get('constraints', [])))]
             ]
             
-            info_table = Table(table_info)
-            info_table.setStyle(TableStyle([
+            meta_table = Table(table_meta_data, colWidths=[2*inch, 3*inch])
+            meta_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ecf0f1')),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(info_table)
-            story.append(Spacer(1, 18))
+            story.append(meta_table)
+            story.append(Spacer(1, 16))
+            
+            # Columns documentation
+            if table.get('columns'):
+                story.append(Paragraph("Columns", ParagraphStyle('ColumnHeader', parent=styles['Heading4'], fontSize=12, textColor=colors.HexColor('#2c3e50'))))
+                
+                columns_data = [['Column Name', 'Data Type', 'Nullable', 'Default', 'Description']]
+                for col in table.get('columns', []):
+                    default_val = str(col.get('default', '')) if col.get('default') else ''
+                    if len(default_val) > 30:
+                        default_val = default_val[:27] + '...'
+                    
+                    desc = str(col.get('description', ''))
+                    if len(desc) > 40:
+                        desc = desc[:37] + '...'
+                    
+                    columns_data.append([
+                        str(col.get('column_name', '')),
+                        str(col.get('data_type', '')),
+                        str(col.get('is_nullable', '')),
+                        default_val,
+                        desc
+                    ])
+                
+                columns_table = Table(columns_data, colWidths=[1.2*inch, 1.2*inch, 0.8*inch, 1*inch, 1.3*inch])
+                columns_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP')
+                ]))
+                
+                story.append(columns_table)
+                story.append(Spacer(1, 16))
+            
+            # Indexes documentation
+            if table.get('indexes'):
+                story.append(Paragraph("Indexes", ParagraphStyle('IndexHeader', parent=styles['Heading4'], fontSize=12, textColor=colors.HexColor('#2c3e50'))))
+                
+                indexes_data = [['Index Name', 'Columns', 'Type', 'Unique']]
+                for idx in table.get('indexes', []):
+                    columns_str = ', '.join(idx.get('columns', [])) if isinstance(idx.get('columns'), list) else str(idx.get('columns', ''))
+                    if len(columns_str) > 30:
+                        columns_str = columns_str[:27] + '...'
+                    
+                    indexes_data.append([
+                        str(idx.get('index_name', '')),
+                        columns_str,
+                        str(idx.get('index_type', '')),
+                        str(idx.get('is_unique', ''))
+                    ])
+                
+                indexes_table = Table(indexes_data, colWidths=[1.5*inch, 1.8*inch, 1.2*inch, 1*inch])
+                indexes_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e74c3c')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                
+                story.append(indexes_table)
+                story.append(Spacer(1, 16))
+            
+            # Constraints documentation
+            if table.get('constraints'):
+                story.append(Paragraph("Constraints", ParagraphStyle('ConstraintHeader', parent=styles['Heading4'], fontSize=12, textColor=colors.HexColor('#2c3e50'))))
+                
+                constraints_data = [['Constraint Name', 'Type', 'Columns', 'Definition']]
+                for constraint in table.get('constraints', []):
+                    columns_str = ', '.join(constraint.get('columns', [])) if isinstance(constraint.get('columns'), list) else str(constraint.get('columns', ''))
+                    definition = str(constraint.get('definition', constraint.get('references', '')))
+                    if len(definition) > 35:
+                        definition = definition[:32] + '...'
+                    
+                    constraints_data.append([
+                        str(constraint.get('constraint_name', '')),
+                        str(constraint.get('constraint_type', '')),
+                        columns_str,
+                        definition
+                    ])
+                
+                constraints_table = Table(constraints_data, colWidths=[1.3*inch, 1*inch, 1.2*inch, 2*inch])
+                constraints_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f39c12')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP')
+                ]))
+                
+                story.append(constraints_table)
+            
+            story.append(Spacer(1, 24))
+            table_counter += 1
+            
+            # Add page break after every 2 tables for readability
+            if table_counter % 3 == 0:
+                story.append(PageBreak())
+        
+        # 3. Views Documentation
+        if db_data.get('views'):
+            story.append(PageBreak())
+            story.append(Paragraph("3. Views Documentation", heading_style))
+            
+            for view in db_data.get('views', []):
+                story.append(Paragraph(f"View: {view['view_name']}", subheading_style))
+                story.append(Paragraph(f"Schema: {view.get('schema', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Description: {view.get('description', 'No description available')}", styles['Normal']))
+                story.append(Spacer(1, 12))
+                
+                if view.get('definition'):
+                    story.append(Paragraph("Definition:", ParagraphStyle('DefHeader', parent=styles['Heading4'], fontSize=12)))
+                    # Format SQL definition
+                    definition = view.get('definition', '')
+                    if len(definition) > 500:
+                        definition = definition[:497] + '...'
+                    story.append(Paragraph(f"<pre>{definition}</pre>", styles['Code']))
+                
+                story.append(Spacer(1, 20))
+        
+        # 4. Functions & Procedures
+        if db_data.get('functions') or db_data.get('procedures'):
+            story.append(PageBreak())
+            story.append(Paragraph("4. Functions & Procedures", heading_style))
+            
+            for func in db_data.get('functions', []):
+                story.append(Paragraph(f"Function: {func.get('function_name', 'Unknown')}", subheading_style))
+                story.append(Paragraph(f"Schema: {func.get('schema', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Return Type: {func.get('return_type', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Parameters: {func.get('parameters', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Description: {func.get('description', 'No description available')}", styles['Normal']))
+                story.append(Spacer(1, 16))
+            
+            for proc in db_data.get('procedures', []):
+                story.append(Paragraph(f"Procedure: {proc.get('procedure_name', 'Unknown')}", subheading_style))
+                story.append(Paragraph(f"Schema: {proc.get('schema', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Parameters: {proc.get('parameters', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Description: {proc.get('description', 'No description available')}", styles['Normal']))
+                story.append(Spacer(1, 16))
         
         # Build PDF
         doc.build(story)
