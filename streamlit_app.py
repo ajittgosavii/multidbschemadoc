@@ -802,29 +802,58 @@ def show_table_documentation(table, db_name, claude_client, include_ai_descripti
     if include_data_dictionary and table.get('columns'):
         st.markdown("#### 📝 Columns")
         
-        columns_df = pd.DataFrame(table['columns'])
-        # Format the dataframe for better display
-        display_columns = ['column_name', 'data_type', 'is_nullable', 'default', 'description']
-        available_columns = [col for col in display_columns if col in columns_df.columns]
+        columns_data = []
+        for col in table['columns']:
+            columns_data.append({
+                'Column Name': str(col.get('column_name', '')),
+                'Data Type': str(col.get('data_type', '')),
+                'Nullable': str(col.get('is_nullable', '')),
+                'Default': str(col.get('default', '') if col.get('default') is not None else ''),
+                'Description': str(col.get('description', ''))
+            })
         
-        if available_columns:
-            st.dataframe(
-                columns_df[available_columns].fillna(''),
-                use_container_width=True,
-                hide_index=True
-            )
+        if columns_data:
+            columns_df = pd.DataFrame(columns_data)
+            st.dataframe(columns_df, use_container_width=True, hide_index=True)
     
     # Indexes documentation
     if table.get('indexes'):
         st.markdown("#### 🔍 Indexes")
-        indexes_df = pd.DataFrame(table['indexes'])
-        st.dataframe(indexes_df.fillna(''), use_container_width=True, hide_index=True)
+        
+        indexes_data = []
+        for idx in table['indexes']:
+            # Convert columns list to string
+            columns_str = ', '.join(idx.get('columns', [])) if isinstance(idx.get('columns'), list) else str(idx.get('columns', ''))
+            indexes_data.append({
+                'Index Name': str(idx.get('index_name', '')),
+                'Columns': columns_str,
+                'Type': str(idx.get('index_type', '')),
+                'Unique': str(idx.get('is_unique', ''))
+            })
+        
+        if indexes_data:
+            indexes_df = pd.DataFrame(indexes_data)
+            st.dataframe(indexes_df, use_container_width=True, hide_index=True)
     
     # Constraints documentation
     if table.get('constraints'):
         st.markdown("#### 🔒 Constraints")
-        constraints_df = pd.DataFrame(table['constraints'])
-        st.dataframe(constraints_df.fillna(''), use_container_width=True, hide_index=True)
+        
+        constraints_data = []
+        for constraint in table['constraints']:
+            # Convert columns list to string
+            columns_str = ', '.join(constraint.get('columns', [])) if isinstance(constraint.get('columns'), list) else str(constraint.get('columns', ''))
+            
+            constraints_data.append({
+                'Constraint Name': str(constraint.get('constraint_name', '')),
+                'Type': str(constraint.get('constraint_type', '')),
+                'Columns': columns_str,
+                'Definition': str(constraint.get('definition', constraint.get('references', '')))
+            })
+        
+        if constraints_data:
+            constraints_df = pd.DataFrame(constraints_data)
+            st.dataframe(constraints_df, use_container_width=True, hide_index=True)
     
     # Performance notes
     if include_performance_notes:
@@ -969,6 +998,9 @@ def show_cross_platform_analysis(sample_data, claude_client):
         })
     
     comparison_df = pd.DataFrame(customers_comparison)
+    # Ensure all columns are strings to avoid PyArrow issues
+    for col in comparison_df.columns:
+        comparison_df[col] = comparison_df[col].astype(str)
     st.dataframe(comparison_df, use_container_width=True, hide_index=True)
     
     # Schema statistics comparison
@@ -1038,6 +1070,9 @@ def show_cross_platform_analysis(sample_data, claude_client):
     ]
     
     features_df = pd.DataFrame(features_comparison)
+    # Ensure all columns are strings to avoid PyArrow issues  
+    for col in features_df.columns:
+        features_df[col] = features_df[col].astype(str)
     st.dataframe(features_df, use_container_width=True, hide_index=True)
     
     # AI-powered migration recommendations
