@@ -1329,6 +1329,15 @@ def generate_complete_documentation(db_name, db_data, claude_client, include_ai_
         </div>
         """, unsafe_allow_html=True)
         
+        # Prepare documentation options
+        doc_options = {
+            'AI-Enhanced Descriptions': include_ai_descriptions,
+            'Include ER Diagrams': include_diagrams,
+            'Data Dictionary': include_data_dictionary,
+            'Performance Notes': include_performance_notes,
+            'Security Analysis': include_security_analysis
+        }
+        
         # Generate documentation content
         html_content = generate_detailed_html_documentation(db_name, db_data)
         markdown_content = generate_detailed_markdown_documentation(db_name, db_data)
@@ -1390,10 +1399,11 @@ def generate_complete_documentation(db_name, db_data, claude_client, include_ai_
             )
         
         with col4:
-            # PDF Download
+            # PDF Download with improved formatting and documentation options
             pdf_filename = f"{db_name.lower()}_documentation.pdf"
             try:
-                pdf_content = generate_pdf_documentation(db_name, db_data, markdown_content)
+                # Pass the documentation options to the PDF generator
+                pdf_content = generate_pdf_documentation(db_name, db_data, markdown_content, doc_options)
                 st.download_button(
                     label="📊 Download PDF",
                     data=pdf_content,
@@ -2143,108 +2153,458 @@ def generate_pdf_documentation(db_name, db_data, markdown_content, doc_options=N
         raise Exception(f"PDF generation failed: {str(e)}")
 
 # Update the generate_complete_documentation function to pass documentation options
-def generate_complete_documentation(db_name, db_data, claude_client, include_ai_descriptions,
-                                  include_diagrams, include_data_dictionary, include_performance_notes,
-                                  include_security_analysis):
-    """Generate complete documentation for a database"""
+def generate_pdf_documentation(db_name, db_data, markdown_content, doc_options=None):
+    """Generate comprehensive PDF documentation using reportlab with improved formatting"""
     
-    with st.spinner(f"📚 Generating complete {db_name} documentation..."):
-        time.sleep(2)  # Simulate processing time
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from reportlab.lib.utils import ImageReader
+        import io
+        import textwrap
         
-        st.markdown(f"""
-        <div class="success-banner">
-            <h4>✅ Complete Documentation Generated</h4>
-            <p><strong>Database:</strong> {db_name}</p>
-            <p><strong>Pages Generated:</strong> 47</p>
-            <p><strong>Objects Documented:</strong> {len(db_data.get('tables', [])) + len(db_data.get('views', []))}</p>
-            <p><strong>Export Formats:</strong> HTML, PDF, Markdown, JSON available</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Create a BytesIO buffer
+        buffer = io.BytesIO()
         
-        # Prepare documentation options
-        doc_options = {
-            'AI-Enhanced Descriptions': include_ai_descriptions,
-            'Include ER Diagrams': include_diagrams,
-            'Data Dictionary': include_data_dictionary,
-            'Performance Notes': include_performance_notes,
-            'Security Analysis': include_security_analysis
-        }
+        # Create the PDF document with margins
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=0.75*inch,
+            bottomMargin=0.75*inch
+        )
+        styles = getSampleStyleSheet()
         
-        # Generate documentation content
-        html_content = generate_detailed_html_documentation(db_name, db_data)
-        markdown_content = generate_detailed_markdown_documentation(db_name, db_data)
-        json_content = convert_to_json_schema(db_data)
+        # Custom styles
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            textColor=colors.HexColor('#2c3e50'),
+            alignment=1  # Center alignment
+        )
         
-        # Show documentation preview
-        st.subheader("📖 Documentation Preview")
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceAfter=12,
+            spaceBefore=24,
+            textColor=colors.HexColor('#3498db')
+        )
         
-        # Show in tabs
-        preview_tabs = st.tabs(["📄 HTML Preview", "📝 Markdown", "📋 JSON Schema"])
+        subheading_style = ParagraphStyle(
+            'CustomSubHeading',
+            parent=styles['Heading3'],
+            fontSize=14,
+            spaceAfter=8,
+            spaceBefore=16,
+            textColor=colors.HexColor('#2c3e50')
+        )
         
-        with preview_tabs[0]:
-            st.markdown(html_content, unsafe_allow_html=True)
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=12
+        )
         
-        with preview_tabs[1]:
-            st.code(markdown_content, language="markdown")
+        # Helper function to wrap text
+        def wrap_text(text, max_length=30):
+            """Wrap text to fit in table cells"""
+            if not text or len(str(text)) <= max_length:
+                return str(text)
+            return '<br/>'.join(textwrap.wrap(str(text), max_length))
         
-        with preview_tabs[2]:
-            st.json(json_content)
+        # Helper function to create wrapped paragraph
+        def create_wrapped_paragraph(text, max_length=30):
+            """Create a paragraph with wrapped text"""
+            wrapped_text = wrap_text(text, max_length)
+            return Paragraph(wrapped_text, normal_style)
         
-        # Download buttons with actual file generation
-        st.subheader("📤 Download Documentation")
+        # Build the comprehensive story
+        story = []
         
-        col1, col2, col3, col4 = st.columns(4)
+        # Cover Page
+        story.append(Spacer(1, 2*inch))
+        story.append(Paragraph(f"📚 {db_name} Database", title_style))
+        story.append(Paragraph("Complete Schema Documentation", title_style))
+        story.append(Spacer(1, 1*inch))
+        story.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+        story.append(Paragraph(f"Time: {datetime.now().strftime('%I:%M %p')}", styles['Normal']))
         
-        with col1:
-            # HTML Download
-            html_filename = f"{db_name.lower()}_documentation.html"
-            html_full = generate_full_html_document(db_name, db_data, html_content)
-            st.download_button(
-                label="📄 Download HTML",
-                data=html_full,
-                file_name=html_filename,
-                mime="text/html",
-                use_container_width=True
-            )
+        # Add documentation options if provided
+        if doc_options:
+            story.append(Spacer(1, 0.5*inch))
+            story.append(Paragraph("📝 Documentation Options", heading_style))
+            for option, enabled in doc_options.items():
+                status = "✅ Enabled" if enabled else "❌ Disabled"
+                story.append(Paragraph(f"• {option}: {status}", styles['Normal']))
         
-        with col2:
-            # Markdown Download
-            md_filename = f"{db_name.lower()}_documentation.md"
-            st.download_button(
-                label="📝 Download Markdown",
-                data=markdown_content,
-                file_name=md_filename,
-                mime="text/markdown",
-                use_container_width=True
-            )
+        story.append(PageBreak())
         
-        with col3:
-            # JSON Download
-            json_filename = f"{db_name.lower()}_schema.json"
-            json_str = json.dumps(json_content, indent=2)
-            st.download_button(
-                label="📋 Download JSON",
-                data=json_str,
-                file_name=json_filename,
-                mime="application/json",
-                use_container_width=True
-            )
+        # Table of Contents
+        story.append(Paragraph("Table of Contents", heading_style))
+        if doc_options:
+            story.append(Paragraph("1. Documentation Options", styles['Normal']))
+            story.append(Paragraph("2. Database Overview", styles['Normal']))
+            story.append(Paragraph("3. Tables Documentation", styles['Normal']))
+        else:
+            story.append(Paragraph("1. Database Overview", styles['Normal']))
+            story.append(Paragraph("2. Tables Documentation", styles['Normal']))
         
-        with col4:
-            # PDF Download with improved formatting and documentation options
-            pdf_filename = f"{db_name.lower()}_documentation.pdf"
-            try:
-                pdf_content = generate_pdf_documentation(db_name, db_data, markdown_content, doc_options)
-                st.download_button(
-                    label="📊 Download PDF",
-                    data=pdf_content,
-                    file_name=pdf_filename,
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"PDF generation not available: {str(e)}")
-                st.info("💡 PDF generation requires additional system dependencies")
+        table_num = 1
+        section_offset = 2 if doc_options else 1
+        for table in db_data.get('tables', []):
+            story.append(Paragraph(f"   {section_offset + 1}.{table_num} {table['table_name']}", styles['Normal']))
+            table_num += 1
+        
+        story.append(Paragraph(f"{section_offset + 2}. Views Documentation", styles['Normal']))
+        story.append(Paragraph(f"{section_offset + 3}. Functions & Procedures", styles['Normal']))
+        story.append(Paragraph(f"{section_offset + 4}. Database Statistics", styles['Normal']))
+        story.append(PageBreak())
+        
+        # 1. Documentation Options Section (if provided)
+        section_num = 1
+        if doc_options:
+            story.append(Paragraph("1. Documentation Options", heading_style))
+            story.append(Paragraph("This documentation was generated with the following configuration:", styles['Normal']))
+            story.append(Spacer(1, 12))
+            
+            options_data = [['Option', 'Status', 'Description']]
+            option_descriptions = {
+                'AI-Enhanced Descriptions': 'Use Claude AI to generate detailed descriptions',
+                'Include ER Diagrams': 'Generate entity relationship diagrams',
+                'Data Dictionary': 'Include comprehensive column documentation',
+                'Performance Notes': 'Add performance analysis and recommendations',
+                'Security Analysis': 'Include security considerations and analysis'
+            }
+            
+            for option, enabled in doc_options.items():
+                status = "✅ Enabled" if enabled else "❌ Disabled"
+                description = option_descriptions.get(option, 'Custom documentation option')
+                options_data.append([
+                    option,
+                    status,
+                    wrap_text(description, 40)
+                ])
+            
+            options_table = Table(options_data, colWidths=[2.2*inch, 1*inch, 2.3*inch])
+            options_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP')
+            ]))
+            
+            story.append(options_table)
+            story.append(PageBreak())
+            section_num = 2
+        
+        # Database Overview
+        story.append(Paragraph(f"{section_num}. Database Overview", heading_style))
+        db_info = db_data.get('database_info', {})
+        
+        overview_data = [
+            ['Property', 'Value'],
+            ['Database Name', db_info.get('name', 'N/A')],
+            ['Database Version', db_info.get('version', 'N/A')],
+            ['Total Size', db_info.get('size', 'N/A')],
+            ['Created Date', db_info.get('created', 'N/A')],
+            ['Last Backup', db_info.get('last_backup', 'N/A')],
+            ['Total Tables', str(len(db_data.get('tables', [])))],
+            ['Total Views', str(len(db_data.get('views', [])))],
+            ['Total Functions', str(len(db_data.get('functions', [])))],
+            ['Total Procedures', str(len(db_data.get('procedures', [])))]
+        ]
+        
+        overview_table = Table(overview_data, colWidths=[2.5*inch, 3*inch])
+        overview_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(overview_table)
+        story.append(Spacer(1, 24))
+        
+        # Database Statistics Summary
+        total_rows = sum(table.get('row_count', 0) for table in db_data.get('tables', []))
+        total_size = sum(table.get('size_mb', 0) for table in db_data.get('tables', []))
+        total_columns = sum(len(table.get('columns', [])) for table in db_data.get('tables', []))
+        total_indexes = sum(len(table.get('indexes', [])) for table in db_data.get('tables', []))
+        
+        stats_data = [
+            ['Metric', 'Count', 'Details'],
+            ['Total Records', f"{total_rows:,}", 'Across all tables'],
+            ['Total Size', f"{total_size:.1f} MB", 'Data + indexes'],
+            ['Total Columns', str(total_columns), 'All table columns'],
+            ['Total Indexes', str(total_indexes), 'Performance optimization'],
+        ]
+        
+        stats_table = Table(stats_data, colWidths=[2*inch, 1.5*inch, 2*inch])
+        stats_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27ae60')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(stats_table)
+        story.append(PageBreak())
+        
+        # Tables Documentation (ALL TABLES - NO LIMIT)
+        section_num += 1
+        story.append(Paragraph(f"{section_num}. Tables Documentation", heading_style))
+        
+        table_counter = 1
+        for table in db_data.get('tables', []):  # ALL TABLES, NO LIMIT
+            # Table header
+            story.append(Paragraph(f"{section_num}.{table_counter} Table: {table['table_name']}", subheading_style))
+            story.append(Paragraph(f"Description: {table.get('description', 'No description available')}", styles['Normal']))
+            story.append(Spacer(1, 12))
+            
+            # Table metadata
+            table_meta_data = [
+                ['Property', 'Value'],
+                ['Schema', table.get('schema', 'N/A')],
+                ['Table Type', table.get('table_type', 'N/A')],
+                ['Row Count', f"{table.get('row_count', 0):,}"],
+                ['Size (MB)', f"{table.get('size_mb', 0):.1f}"],
+                ['Column Count', str(len(table.get('columns', [])))],
+                ['Index Count', str(len(table.get('indexes', [])))],
+                ['Constraint Count', str(len(table.get('constraints', [])))]
+            ]
+            
+            meta_table = Table(table_meta_data, colWidths=[2.2*inch, 3.3*inch])
+            meta_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ecf0f1')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(meta_table)
+            story.append(Spacer(1, 16))
+            
+            # Columns documentation with improved formatting
+            if table.get('columns'):
+                story.append(Paragraph("Columns", ParagraphStyle('ColumnHeader', parent=styles['Heading4'], fontSize=12, textColor=colors.HexColor('#2c3e50'))))
+                
+                columns_data = [
+                    ['Column Name', 'Data Type', 'Nullable', 'Default', 'Description']
+                ]
+                
+                for col in table.get('columns', []):
+                    # Handle long default values
+                    default_val = str(col.get('default', '')) if col.get('default') else ''
+                    if len(default_val) > 25:
+                        default_val = default_val[:22] + '...'
+                    
+                    # Handle long descriptions
+                    desc = str(col.get('description', ''))
+                    if len(desc) > 35:
+                        desc = desc[:32] + '...'
+                    
+                    # Handle long data types
+                    data_type = str(col.get('data_type', ''))
+                    if len(data_type) > 20:
+                        data_type = data_type[:17] + '...'
+                    
+                    columns_data.append([
+                        create_wrapped_paragraph(str(col.get('column_name', '')), 15),
+                        create_wrapped_paragraph(data_type, 18),
+                        str(col.get('is_nullable', '')),
+                        create_wrapped_paragraph(default_val, 20),
+                        create_wrapped_paragraph(desc, 30)
+                    ])
+                
+                columns_table = Table(columns_data, colWidths=[1.1*inch, 1.1*inch, 0.7*inch, 1.1*inch, 1.5*inch])
+                columns_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4)
+                ]))
+                
+                story.append(columns_table)
+                story.append(Spacer(1, 16))
+            
+            # Indexes documentation with improved formatting
+            if table.get('indexes'):
+                story.append(Paragraph("Indexes", ParagraphStyle('IndexHeader', parent=styles['Heading4'], fontSize=12, textColor=colors.HexColor('#2c3e50'))))
+                
+                indexes_data = [['Index Name', 'Columns', 'Type', 'Unique']]
+                for idx in table.get('indexes', []):
+                    columns_str = ', '.join(idx.get('columns', [])) if isinstance(idx.get('columns'), list) else str(idx.get('columns', ''))
+                    
+                    indexes_data.append([
+                        create_wrapped_paragraph(str(idx.get('index_name', '')), 20),
+                        create_wrapped_paragraph(columns_str, 25),
+                        str(idx.get('index_type', '')),
+                        str(idx.get('is_unique', ''))
+                    ])
+                
+                indexes_table = Table(indexes_data, colWidths=[1.4*inch, 2*inch, 1*inch, 0.6*inch])
+                indexes_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e74c3c')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4)
+                ]))
+                
+                story.append(indexes_table)
+                story.append(Spacer(1, 16))
+            
+            # Constraints documentation with improved formatting
+            if table.get('constraints'):
+                story.append(Paragraph("Constraints", ParagraphStyle('ConstraintHeader', parent=styles['Heading4'], fontSize=12, textColor=colors.HexColor('#2c3e50'))))
+                
+                constraints_data = [['Constraint Name', 'Type', 'Columns', 'Definition']]
+                for constraint in table.get('constraints', []):
+                    columns_str = ', '.join(constraint.get('columns', [])) if isinstance(constraint.get('columns'), list) else str(constraint.get('columns', ''))
+                    definition = str(constraint.get('definition', constraint.get('references', '')))
+                    
+                    constraints_data.append([
+                        create_wrapped_paragraph(str(constraint.get('constraint_name', '')), 18),
+                        str(constraint.get('constraint_type', '')),
+                        create_wrapped_paragraph(columns_str, 15),
+                        create_wrapped_paragraph(definition, 30)
+                    ])
+                
+                constraints_table = Table(constraints_data, colWidths=[1.2*inch, 0.9*inch, 1.1*inch, 2.3*inch])
+                constraints_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f39c12')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4)
+                ]))
+                
+                story.append(constraints_table)
+            
+            story.append(Spacer(1, 24))
+            table_counter += 1
+            
+            # Add page break after every 2 tables for readability
+            if table_counter % 3 == 0:
+                story.append(PageBreak())
+        
+        # Views Documentation
+        if db_data.get('views'):
+            story.append(PageBreak())
+            section_num += 1
+            story.append(Paragraph(f"{section_num}. Views Documentation", heading_style))
+            
+            for view in db_data.get('views', []):
+                story.append(Paragraph(f"View: {view['view_name']}", subheading_style))
+                story.append(Paragraph(f"Schema: {view.get('schema', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Description: {view.get('description', 'No description available')}", styles['Normal']))
+                story.append(Spacer(1, 12))
+                
+                if view.get('definition'):
+                    story.append(Paragraph("Definition:", ParagraphStyle('DefHeader', parent=styles['Heading4'], fontSize=12)))
+                    # Format SQL definition with better wrapping
+                    definition = view.get('definition', '')
+                    # Split long lines and format properly
+                    if len(definition) > 500:
+                        definition = definition[:497] + '...'
+                    
+                    # Create code style with proper formatting
+                    code_style = ParagraphStyle(
+                        'CodeStyle',
+                        parent=styles['Code'],
+                        fontSize=8,
+                        leading=10,
+                        leftIndent=10,
+                        rightIndent=10,
+                        spaceAfter=10,
+                        backColor=colors.HexColor('#f8f9fa')
+                    )
+                    
+                    story.append(Paragraph(definition, code_style))
+                
+                story.append(Spacer(1, 20))
+        
+        # Functions & Procedures
+        if db_data.get('functions') or db_data.get('procedures'):
+            story.append(PageBreak())
+            section_num += 1
+            story.append(Paragraph(f"{section_num}. Functions & Procedures", heading_style))
+            
+            for func in db_data.get('functions', []):
+                story.append(Paragraph(f"Function: {func.get('function_name', 'Unknown')}", subheading_style))
+                story.append(Paragraph(f"Schema: {func.get('schema', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Return Type: {func.get('return_type', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Parameters: {func.get('parameters', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Description: {func.get('description', 'No description available')}", styles['Normal']))
+                story.append(Spacer(1, 16))
+            
+            for proc in db_data.get('procedures', []):
+                story.append(Paragraph(f"Procedure: {proc.get('procedure_name', 'Unknown')}", subheading_style))
+                story.append(Paragraph(f"Schema: {proc.get('schema', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Parameters: {proc.get('parameters', 'N/A')}", styles['Normal']))
+                story.append(Paragraph(f"Description: {proc.get('description', 'No description available')}", styles['Normal']))
+                story.append(Spacer(1, 16))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Get the PDF data
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_data
+        
+    except ImportError:
+        raise Exception("ReportLab not available for PDF generation")
+    except Exception as e:
+        raise Exception(f"PDF generation failed: {str(e)}")
 
 def convert_to_json_schema(db_data):
     """Convert database data to JSON schema format"""
