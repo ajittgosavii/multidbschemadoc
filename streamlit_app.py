@@ -1317,7 +1317,7 @@ def generate_complete_documentation(db_name, db_data, claude_client, include_ai_
     """Generate complete documentation for a database"""
     
     with st.spinner(f"📚 Generating complete {db_name} documentation..."):
-        time.sleep(3)
+        time.sleep(2)  # Simulate processing time
         
         st.markdown(f"""
         <div class="success-banner">
@@ -1329,100 +1329,488 @@ def generate_complete_documentation(db_name, db_data, claude_client, include_ai_
         </div>
         """, unsafe_allow_html=True)
         
+        # Generate documentation content
+        html_content = generate_detailed_html_documentation(db_name, db_data)
+        markdown_content = generate_detailed_markdown_documentation(db_name, db_data)
+        json_content = convert_to_json_schema(db_data)
+        
         # Show documentation preview
         st.subheader("📖 Documentation Preview")
-        
-        # Generate sample documentation content
-        doc_content = generate_sample_documentation(db_name, db_data)
         
         # Show in tabs
         preview_tabs = st.tabs(["📄 HTML Preview", "📝 Markdown", "📋 JSON Schema"])
         
         with preview_tabs[0]:
-            st.markdown(doc_content, unsafe_allow_html=True)
+            st.markdown(html_content, unsafe_allow_html=True)
         
         with preview_tabs[1]:
-            st.code(convert_to_markdown(doc_content), language="markdown")
+            st.code(markdown_content, language="markdown")
         
         with preview_tabs[2]:
-            st.json(convert_to_json_schema(db_data))
+            st.json(json_content)
         
-        # Download buttons
+        # Download buttons with actual file generation
         st.subheader("📤 Download Documentation")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("📄 Download HTML", use_container_width=True):
-                st.success("✅ HTML documentation downloaded!")
+            # HTML Download
+            html_filename = f"{db_name.lower()}_documentation.html"
+            html_full = generate_full_html_document(db_name, db_data, html_content)
+            st.download_button(
+                label="📄 Download HTML",
+                data=html_full,
+                file_name=html_filename,
+                mime="text/html",
+                use_container_width=True
+            )
         
         with col2:
-            if st.button("📝 Download Markdown", use_container_width=True):
-                st.success("✅ Markdown documentation downloaded!")
+            # Markdown Download
+            md_filename = f"{db_name.lower()}_documentation.md"
+            st.download_button(
+                label="📝 Download Markdown",
+                data=markdown_content,
+                file_name=md_filename,
+                mime="text/markdown",
+                use_container_width=True
+            )
         
         with col3:
-            if st.button("📋 Download JSON", use_container_width=True):
-                st.success("✅ JSON schema downloaded!")
+            # JSON Download
+            json_filename = f"{db_name.lower()}_schema.json"
+            json_str = json.dumps(json_content, indent=2)
+            st.download_button(
+                label="📋 Download JSON",
+                data=json_str,
+                file_name=json_filename,
+                mime="application/json",
+                use_container_width=True
+            )
         
         with col4:
-            if st.button("📊 Download PDF", use_container_width=True):
-                st.success("✅ PDF report downloaded!")
+            # PDF Download
+            pdf_filename = f"{db_name.lower()}_documentation.pdf"
+            try:
+                pdf_content = generate_pdf_documentation(db_name, db_data, markdown_content)
+                st.download_button(
+                    label="📊 Download PDF",
+                    data=pdf_content,
+                    file_name=pdf_filename,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"PDF generation not available: {str(e)}")
+                st.info("💡 PDF generation requires additional system dependencies")
 
-def generate_sample_documentation(db_name, db_data):
-    """Generate sample HTML documentation"""
+def generate_detailed_html_documentation(db_name, db_data):
+    """Generate detailed HTML documentation"""
     
     html_content = f"""
-    <div style="font-family: 'Inter', sans-serif; max-width: 800px;">
+    <div style="font-family: 'Inter', sans-serif; max-width: 1000px; margin: 0 auto;">
         <h1>📚 {db_name} Database Documentation</h1>
         <p><em>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</em></p>
         
         <h2>📊 Database Overview</h2>
-        <ul>
-            <li><strong>Name:</strong> {db_data.get('database_info', {}).get('name', 'N/A')}</li>
-            <li><strong>Version:</strong> {db_data.get('database_info', {}).get('version', 'N/A')}</li>
-            <li><strong>Tables:</strong> {len(db_data.get('tables', []))}</li>
-            <li><strong>Views:</strong> {len(db_data.get('views', []))}</li>
-        </ul>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr style="background-color: #f8f9fa;">
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Property</th>
+                <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Value</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 12px;">Database Name</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">{db_data.get('database_info', {}).get('name', 'N/A')}</td>
+            </tr>
+            <tr style="background-color: #f8f9fa;">
+                <td style="border: 1px solid #ddd; padding: 12px;">Version</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">{db_data.get('database_info', {}).get('version', 'N/A')}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 12px;">Size</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">{db_data.get('database_info', {}).get('size', 'N/A')}</td>
+            </tr>
+            <tr style="background-color: #f8f9fa;">
+                <td style="border: 1px solid #ddd; padding: 12px;">Tables</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">{len(db_data.get('tables', []))}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 12px;">Views</td>
+                <td style="border: 1px solid #ddd; padding: 12px;">{len(db_data.get('views', []))}</td>
+            </tr>
+        </table>
         
-        <h2>📋 Tables</h2>
+        <h2>📋 Tables Documentation</h2>
     """
     
-    for table in db_data.get('tables', [])[:2]:  # Show first 2 tables as preview
+    # Add detailed table documentation
+    for table in db_data.get('tables', []):
         html_content += f"""
         <h3>📊 {table['table_name']}</h3>
-        <p>{table.get('description', 'No description available')}</p>
+        <p><strong>Description:</strong> {table.get('description', 'No description available')}</p>
         <ul>
+            <li><strong>Schema:</strong> {table.get('schema', 'N/A')}</li>
+            <li><strong>Type:</strong> {table.get('table_type', 'N/A')}</li>
             <li><strong>Rows:</strong> {table.get('row_count', 0):,}</li>
             <li><strong>Size:</strong> {table.get('size_mb', 0):.1f} MB</li>
-            <li><strong>Columns:</strong> {len(table.get('columns', []))}</li>
         </ul>
+        
+        <h4>Columns</h4>
+        <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+            <tr style="background-color: #f8f9fa;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Column</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Type</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nullable</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Default</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Description</th>
+            </tr>
         """
+        
+        for i, col in enumerate(table.get('columns', [])):
+            bg_color = "#f8f9fa" if i % 2 == 0 else "white"
+            html_content += f"""
+            <tr style="background-color: {bg_color};">
+                <td style="border: 1px solid #ddd; padding: 8px;">{col.get('column_name', '')}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{col.get('data_type', '')}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{col.get('is_nullable', '')}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{col.get('default', '') if col.get('default') else ''}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{col.get('description', '')}</td>
+            </tr>
+            """
+        
+        html_content += "</table>"
+        
+        # Add indexes if available
+        if table.get('indexes'):
+            html_content += """
+            <h4>Indexes</h4>
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+                <tr style="background-color: #f8f9fa;">
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Index Name</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Columns</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Type</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Unique</th>
+                </tr>
+            """
+            
+            for i, idx in enumerate(table.get('indexes', [])):
+                bg_color = "#f8f9fa" if i % 2 == 0 else "white"
+                columns_str = ', '.join(idx.get('columns', [])) if isinstance(idx.get('columns'), list) else str(idx.get('columns', ''))
+                html_content += f"""
+                <tr style="background-color: {bg_color};">
+                    <td style="border: 1px solid #ddd; padding: 8px;">{idx.get('index_name', '')}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{columns_str}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{idx.get('index_type', '')}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{idx.get('is_unique', '')}</td>
+                </tr>
+                """
+            
+            html_content += "</table>"
+    
+    # Add views documentation
+    if db_data.get('views'):
+        html_content += "<h2>👁️ Views Documentation</h2>"
+        for view in db_data.get('views', []):
+            html_content += f"""
+            <h3>👁️ {view['view_name']}</h3>
+            <p><strong>Description:</strong> {view.get('description', 'No description available')}</p>
+            <p><strong>Schema:</strong> {view.get('schema', 'N/A')}</p>
+            <h4>Definition:</h4>
+            <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">
+{view.get('definition', 'No definition available')}
+            </pre>
+            """
     
     html_content += """
-        <p><em>... (complete documentation would include all tables, views, and detailed analysis)</em></p>
     </div>
     """
     
     return html_content
 
-def convert_to_markdown(html_content):
-    """Convert HTML content to Markdown"""
-    # Simple HTML to Markdown conversion for demo
-    markdown = html_content.replace('<h1>', '# ').replace('</h1>', '\n')
-    markdown = markdown.replace('<h2>', '## ').replace('</h2>', '\n')
-    markdown = markdown.replace('<h3>', '### ').replace('</h3>', '\n')
-    markdown = markdown.replace('<p>', '').replace('</p>', '\n\n')
-    markdown = markdown.replace('<ul>', '').replace('</ul>', '\n')
-    markdown = markdown.replace('<li>', '- ').replace('</li>', '\n')
-    markdown = markdown.replace('<strong>', '**').replace('</strong>', '**')
-    markdown = markdown.replace('<em>', '*').replace('</em>', '*')
+def generate_detailed_markdown_documentation(db_name, db_data):
+    """Generate detailed Markdown documentation"""
     
-    # Remove div tags and styling
-    import re
-    markdown = re.sub(r'<div[^>]*>', '', markdown)
-    markdown = markdown.replace('</div>', '')
+    markdown_content = f"""# 📚 {db_name} Database Documentation
+
+*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
+
+## 📊 Database Overview
+
+| Property | Value |
+|----------|-------|
+| Database Name | {db_data.get('database_info', {}).get('name', 'N/A')} |
+| Version | {db_data.get('database_info', {}).get('version', 'N/A')} |
+| Size | {db_data.get('database_info', {}).get('size', 'N/A')} |
+| Tables | {len(db_data.get('tables', []))} |
+| Views | {len(db_data.get('views', []))} |
+
+## 📋 Tables Documentation
+
+"""
     
-    return markdown
+    # Add detailed table documentation
+    for table in db_data.get('tables', []):
+        markdown_content += f"""### 📊 {table['table_name']}
+
+**Description:** {table.get('description', 'No description available')}
+
+- **Schema:** {table.get('schema', 'N/A')}
+- **Type:** {table.get('table_type', 'N/A')}
+- **Rows:** {table.get('row_count', 0):,}
+- **Size:** {table.get('size_mb', 0):.1f} MB
+
+#### Columns
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+"""
+        
+        for col in table.get('columns', []):
+            default_val = col.get('default', '') if col.get('default') else ''
+            markdown_content += f"| {col.get('column_name', '')} | {col.get('data_type', '')} | {col.get('is_nullable', '')} | {default_val} | {col.get('description', '')} |\n"
+        
+        # Add indexes if available
+        if table.get('indexes'):
+            markdown_content += "\n#### Indexes\n\n| Index Name | Columns | Type | Unique |\n|------------|---------|------|--------|\n"
+            
+            for idx in table.get('indexes', []):
+                columns_str = ', '.join(idx.get('columns', [])) if isinstance(idx.get('columns'), list) else str(idx.get('columns', ''))
+                markdown_content += f"| {idx.get('index_name', '')} | {columns_str} | {idx.get('index_type', '')} | {idx.get('is_unique', '')} |\n"
+        
+        markdown_content += "\n"
+    
+    # Add views documentation
+    if db_data.get('views'):
+        markdown_content += "## 👁️ Views Documentation\n\n"
+        for view in db_data.get('views', []):
+            markdown_content += f"""### 👁️ {view['view_name']}
+
+**Description:** {view.get('description', 'No description available')}
+**Schema:** {view.get('schema', 'N/A')}
+
+#### Definition:
+```sql
+{view.get('definition', 'No definition available')}
+```
+
+"""
+    
+    return markdown_content
+
+def generate_full_html_document(db_name, db_data, content):
+    """Generate a complete HTML document with CSS styling"""
+    
+    full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{db_name} Database Documentation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {{
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }}
+        
+        h1, h2, h3, h4 {{
+            color: #2c3e50;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }}
+        
+        h1 {{
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }}
+        
+        th {{
+            background-color: #3498db;
+            color: white;
+            font-weight: 600;
+        }}
+        
+        tr:nth-child(even) {{
+            background-color: #f8f9fa;
+        }}
+        
+        pre {{
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border-left: 4px solid #3498db;
+        }}
+        
+        .header {{
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            color: white;
+            border-radius: 10px;
+        }}
+        
+        .section {{
+            background-color: white;
+            padding: 2rem;
+            margin: 2rem 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📚 {db_name} Database Documentation</h1>
+        <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    </div>
+    
+    <div class="section">
+        {content}
+    </div>
+    
+    <footer style="text-align: center; margin-top: 2rem; padding: 1rem; color: #666;">
+        <p>Generated by Multi-DB Schema Documentation Tool</p>
+    </footer>
+</body>
+</html>"""
+    
+    return full_html
+
+def generate_pdf_documentation(db_name, db_data, markdown_content):
+    """Generate PDF documentation using reportlab"""
+    
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        import io
+        
+        # Create a BytesIO buffer
+        buffer = io.BytesIO()
+        
+        # Create the PDF document
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            textColor=colors.HexColor('#2c3e50')
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceAfter=12,
+            textColor=colors.HexColor('#3498db')
+        )
+        
+        # Build the story
+        story = []
+        
+        # Title
+        story.append(Paragraph(f"{db_name} Database Documentation", title_style))
+        story.append(Spacer(1, 12))
+        story.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        story.append(Spacer(1, 24))
+        
+        # Database overview
+        story.append(Paragraph("Database Overview", heading_style))
+        db_info = db_data.get('database_info', {})
+        overview_data = [
+            ['Property', 'Value'],
+            ['Database Name', db_info.get('name', 'N/A')],
+            ['Version', db_info.get('version', 'N/A')],
+            ['Size', db_info.get('size', 'N/A')],
+            ['Tables', str(len(db_data.get('tables', [])))],
+            ['Views', str(len(db_data.get('views', [])))]
+        ]
+        
+        overview_table = Table(overview_data)
+        overview_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(overview_table)
+        story.append(Spacer(1, 24))
+        
+        # Tables documentation
+        story.append(Paragraph("Tables Documentation", heading_style))
+        
+        for table in db_data.get('tables', [])[:3]:  # Limit to first 3 tables for PDF size
+            story.append(Paragraph(f"Table: {table['table_name']}", styles['Heading3']))
+            story.append(Paragraph(f"Description: {table.get('description', 'No description')}", styles['Normal']))
+            story.append(Spacer(1, 12))
+            
+            # Table info
+            table_info = [
+                ['Property', 'Value'],
+                ['Schema', table.get('schema', 'N/A')],
+                ['Type', table.get('table_type', 'N/A')],
+                ['Rows', f"{table.get('row_count', 0):,}"],
+                ['Size', f"{table.get('size_mb', 0):.1f} MB"]
+            ]
+            
+            info_table = Table(table_info)
+            info_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ecf0f1')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(info_table)
+            story.append(Spacer(1, 18))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Get the PDF data
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_data
+        
+    except ImportError:
+        raise Exception("ReportLab not available for PDF generation")
+    except Exception as e:
+        raise Exception(f"PDF generation failed: {str(e)}")
 
 def convert_to_json_schema(db_data):
     """Convert database data to JSON schema format"""
